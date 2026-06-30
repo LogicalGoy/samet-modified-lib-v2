@@ -37,12 +37,34 @@ function Shim:Init(config)
             src = game:HttpGet(SAMET_URL)
             local cut = src:find("\nlocal Window = Library:Window")
             if cut then src = src:sub(1, cut - 1) .. "\nreturn Library\n" end
-            src = src:gsub("Window:SetOpen%(Value%)", "if Window.SetOpen then Window:SetOpen(Value) end")
             pcall(function()
                 if makefolder and isfolder and not isfolder("BaseUI") then makefolder("BaseUI") end
                 if writefile then writefile(SAMET_CACHE, src) end
             end)
         end
+
+        -- Apply monkey-patches to Samet UI source code
+        -- A. Default Background Transparency to 0.25
+        src = src:gsub("BackgroundTransparency = 0%.12", "BackgroundTransparency = 0.25")
+        src = src:gsub("Default = 0%.12", "Default = 0.25")
+
+        -- B. Inject NoModes field in Keybind constructor
+        src = src:gsub('Mode = Data%.Mode or Data%.mode or Enum%.KeyCode%.RightShift,', 'Mode = Data.Mode or Data.mode or Enum.KeyCode.RightShift,\n                NoModes = Data.NoModes or false,')
+
+        -- C. Hide Mode Selection buttons if NoModes is true
+        src = src:gsub('Items%["Modes"%] = Instances:Create%("Frame", {%s*Parent = Items%["Label"%]%.Instance,', 'Items["Modes"] = Instances:Create("Frame", {\n                    Parent = Items["Label"].Instance,\n                    Visible = not (Data.NoModes or false),')
+
+        -- D. Force "Toggle" mode behavior on Press and Set if NoModes is true
+        src = src:gsub('function Keybind:Press%(Bool%)%s*if Keybind%.ModeSelected == "Toggle" then', 'function Keybind:Press(Bool)\n                if Keybind.NoModes then Keybind.ModeSelected = "Toggle" end\n                if Keybind.ModeSelected == "Toggle" then')
+        
+        src = src:gsub('function Keybind:Set%(Key%)', 'function Keybind:Set(Key)\n                if Keybind.NoModes then\n                    if type(Key) == "table" then\n                        Key.Mode = "Toggle"\n                        Key.ModeSelected = false\n                    elseif type(Key) == "string" and (Key == "Hold" or Key == "Always") then\n                        return\n                    end\n                end')
+
+        -- E. Set NoModes = true for Settings Menu Keybind
+        src = src:gsub('Flag = "MenuBind",%s*Default = Enum%.KeyCode%.Z,', 'Flag = "MenuBind",\n                    Default = Enum.KeyCode.Z,\n                    NoModes = true,')
+
+        -- F. Safety fix for SetOpen during startup
+        src = src:gsub("Window:SetOpen%(Value%)", "if Window.SetOpen then Window:SetOpen(Value) end")
+
         Samet = loadstring(src)()
     end
 
@@ -129,9 +151,15 @@ function Shim:Init(config)
                 function kp:GetState() return self._state == true end
                 function kp:SetValue(v) self.Value = v end
                 if not kdata.NoUI then
+                    local noModes = true
+                    local kfLower = string.lower(kflag)
+                    if string.find(kfLower, "aim") or string.find(kfLower, "lock") or string.find(kfLower, "target") then
+                        noModes = false
+                    end
                     local kb
                     kb = self._sec:Keybind({
                         Name = kdata.Text or kflag, Flag = kflag, Default = keyToEnum(kdata.Default) or "None",
+                        NoModes = noModes,
                         Callback = function(toggled)
                             kp._state = toggled and true or false
                             local mode = "Toggle"
