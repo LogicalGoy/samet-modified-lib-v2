@@ -71,6 +71,9 @@ function Shim:Init(config)
         src = src:gsub("return Library:Connect%(self%.Instance%[Event%], Callback, Name%)", "if Library then return Library:Connect(self.Instance[Event], Callback, Name) end")
         src = src:gsub("return Library:Disconnect%(Name%)", "if Library then return Library:Disconnect(Name) end")
 
+        -- H. Prevent local Library reference from being cleared during Unload to avoid post-unload nil-indexing errors
+        src = src:gsub("Library = nil%s*getgenv%(%)%.Library = nil", "Library.Unloaded = true\n        getgenv().Library = nil")
+
         Samet = loadstring(src)()
     end
 
