@@ -65,6 +65,12 @@ function Shim:Init(config)
         -- F. Safety fix for SetOpen during startup
         src = src:gsub("Window:SetOpen%(Value%)", "if Window.SetOpen then Window:SetOpen(Value) end")
 
+        -- G. Safety fix for Instances methods when Library is nil (during unload)
+        src = src:gsub("Library:ChangeItemTheme%(self, Properties%)", "if Library then Library:ChangeItemTheme(self, Properties) end")
+        src = src:gsub("Library:AddToTheme%(self, Properties%)", "if Library then Library:AddToTheme(self, Properties) end")
+        src = src:gsub("return Library:Connect%(self%.Instance%[Event%], Callback, Name%)", "if Library then return Library:Connect(self.Instance[Event], Callback, Name) end")
+        src = src:gsub("return Library:Disconnect%(Name%)", "if Library then return Library:Disconnect(Name) end")
+
         Samet = loadstring(src)()
     end
 
