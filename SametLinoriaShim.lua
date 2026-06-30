@@ -306,7 +306,7 @@ function Shim:Init(config)
 
         local W = { _win = win }
         local _tabIcons = {
-            Main = "123944728972740", ["Auto Parry"] = "105762727005202", Character = "134236649319095",
+            Main = "123944728972740", ["Auto Parry"] = "116579516350114", Character = "134236649319095",
             Aimbot = "100050851789190", ESP = "123554105934637", Utilities = "103180437044643",
             Settings = "126497581491926",
         }
