@@ -80,6 +80,29 @@ function Shim:Init(config)
         -- J. Optimize Tab Switching to prevent stutters (bypass deep descendants fading loop)
         src = src:gsub('local AllInstances = Items%["Page"%]%.Instance:GetDescendants%(%)%s*TableInsert%(AllInstances, Items%["Page"%]%.Instance%)%s*local NewTween', 'local AllInstances = {}\n                local NewTween = { Tween = { Completed = game:GetService("RunService").Heartbeat } }')
 
+        -- K. Fix KeybindList:SetVisibility hardcoded bug in Samet UI
+        src = src:gsub('function KeybindList:SetVisibility%(Bool%)%s*Items%["KeybindsList"%]%.Instance%.Visible = false%s*end', 'function KeybindList:SetVisibility(Bool)\n                Items["KeybindsList"].Instance.Visible = Bool\n            end')
+
+        -- L. Fix Notification sizing and accent positioning bugs
+        src = src:gsub('local Size = Items%["Notification"%]%.Instance%.AbsoluteSize%s*Items%["Notification"%]%.Instance%.Size = UDim2New%(0, 0, 0, 0%)%s*for Index, Value in Items do%s*if Value%.Instance:IsA%("Frame"%) then%s*Value%.Instance%.BackgroundTransparency = 1%s*elseif Value%.Instance:IsA%("TextLabel"%) then%s*Value%.Instance%.TextTransparency = 1%s*elseif Value%.Instance:IsA%("ImageLabel"%) then%s*Value%.Instance%.ImageTransparency = 1%s*end%s*end%s*task%.wait%(0%.2%)', [[
+            for Index, Value in Items do 
+                if Value.Instance:IsA("Frame") then
+                    Value.Instance.BackgroundTransparency = 1
+                elseif Value.Instance:IsA("TextLabel") then 
+                    Value.Instance.TextTransparency = 1
+                elseif Value.Instance:IsA("ImageLabel") then 
+                    Value.Instance.ImageTransparency = 1
+                end
+            end 
+            task.wait()
+            local Size = Items["Notification"].Instance.AbsoluteSize
+            pcall(function()
+                Items["Accent"].Instance.Position = UDim2New(0, 0, 0, Items["Description"].Instance.AbsoluteSize.Y + Items["Title"].Instance.AbsoluteSize.Y + 12)
+            end)
+            Items["Notification"].Instance.Size = UDim2New(0, 0, 0, 0)
+            task.wait(0.15)
+        ]])
+
         Samet = loadstring(src)()
     end
 
@@ -310,7 +333,10 @@ function Shim:Init(config)
             fixLogo("Logo")
             fixLogo("FloatingLogo")
         end)
-        pcall(function() Samet:KeybindList("Keybinds") end)
+        pcall(function()
+            local kl = Samet:KeybindList("Keybinds")
+            Library.KeyList = kl
+        end)
         pcall(function() win:Category("Features") end)
 
         local W = { _win = win }
