@@ -482,3 +482,6 @@ function Shim:Init(config)
     end
 
     return Library, Toggles, Options, ThemeManager, SaveManager
+end
+
+return Shim
