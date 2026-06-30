@@ -59,8 +59,8 @@ function Shim:Init(config)
         
         src = src:gsub('function Keybind:Set%(Key%)', 'function Keybind:Set(Key)\n                if Keybind.NoModes then\n                    if type(Key) == "table" then\n                        Key.Mode = "Toggle"\n                        Key.ModeSelected = false\n                    elseif type(Key) == "string" and (Key == "Hold" or Key == "Always") then\n                        return\n                    end\n                end')
 
-        -- E. Set NoModes = true for Settings Menu Keybind
-        src = src:gsub('Flag = "MenuBind",%s*Default = Enum%.KeyCode%.Z,', 'Flag = "MenuBind",\n                    Default = Enum.KeyCode.Z,\n                    NoModes = true,')
+        -- E. Set Default to RightShift and NoModes = true for Settings Menu Keybind
+        src = src:gsub('Flag = "MenuBind",%s*Default = Enum%.KeyCode%.Z,', 'Flag = "MenuBind",\n                    Default = Enum.KeyCode.RightShift,\n                    NoModes = true,')
 
         -- F. Safety fix for SetOpen during startup
         src = src:gsub("Window:SetOpen%(Value%)", "if Window.SetOpen then Window:SetOpen(Value) end")
@@ -76,6 +76,9 @@ function Shim:Init(config)
 
         -- I. Support full URIs (like rbxthumb://) for tab icons to allow using Decal IDs directly
         src = src:gsub('Image = "rbxassetid://"%.%.Page%.Icon,', 'Image = string.find(tostring(Page.Icon), "://") and Page.Icon or ("rbxassetid://"..Page.Icon),')
+
+        -- J. Optimize Tab Switching to prevent stutters (bypass deep descendants fading loop)
+        src = src:gsub('local AllInstances = Items%["Page"%]%.Instance:GetDescendants%(%)%s*TableInsert%(AllInstances, Items%["Page"%]%.Instance%)%s*local NewTween', 'local AllInstances = {}\n                local NewTween = { Tween = { Completed = game:GetService("RunService").Heartbeat } }')
 
         Samet = loadstring(src)()
     end
@@ -363,11 +366,11 @@ function Shim:Init(config)
             end,
         })
         local presets = {
-            { "Citra Orange", Color3.fromRGB(255, 165, 0) },
-            { "Samet Blue",   Color3.fromRGB(0, 195, 255) },
-            { "Citra Purple", Color3.fromRGB(138, 43, 226) },
-            { "Crimson",      Color3.fromRGB(220, 40, 60) },
-            { "Emerald",      Color3.fromRGB(40, 200, 120) },
+            { "Orange",  Color3.fromRGB(255, 165, 0) },
+            { "Blue",    Color3.fromRGB(0, 195, 255) },
+            { "Purple",  Color3.fromRGB(138, 43, 226) },
+            { "Crimson", Color3.fromRGB(220, 40, 60) },
+            { "Emerald", Color3.fromRGB(40, 200, 120) },
         }
         for _, p in ipairs(presets) do
             box:AddButton({ Text = p[1], Func = function()
