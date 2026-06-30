@@ -74,6 +74,9 @@ function Shim:Init(config)
         -- H. Prevent local Library reference from being cleared during Unload to avoid post-unload nil-indexing errors
         src = src:gsub("Library = nil%s*getgenv%(%)%.Library = nil", "Library.Unloaded = true\n        getgenv().Library = nil")
 
+        -- I. Support full URIs (like rbxthumb://) for tab icons to allow using Decal IDs directly
+        src = src:gsub('Image = "rbxassetid://"%.%.Page%.Icon,', 'Image = string.find(tostring(Page.Icon), "://") and Page.Icon or ("rbxassetid://"..Page.Icon),')
+
         Samet = loadstring(src)()
     end
 
@@ -309,7 +312,7 @@ function Shim:Init(config)
 
         local W = { _win = win }
         local _tabIcons = {
-            Main = "123944728972740", ["Auto Parry"] = "116579516350114", Character = "134236649319095",
+            Main = "123944728972740", ["Auto Parry"] = "rbxthumb://type=Asset&id=116579516350114&w=150&h=150", Character = "134236649319095",
             Aimbot = "100050851789190", ESP = "123554105934637", Utilities = "103180437044643",
             Settings = "126497581491926",
         }
@@ -479,6 +482,3 @@ function Shim:Init(config)
     end
 
     return Library, Toggles, Options, ThemeManager, SaveManager
-end
-
-return Shim
