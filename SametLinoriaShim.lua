@@ -306,7 +306,7 @@ function Shim:Init(config)
             if data.Text then self._sec:Label(data.Text) end
             local el = self._sec:Textbox({
                 Flag = flag, Default = data.Default or "", Placeholder = data.Placeholder or "...",
-                Numeric = data.Numeric and true or false, Finished = true,
+                Numeric = data.Numeric and true or false, Finished = false,
                 Callback = function(v) if Options[flag] then Options[flag]:_fire(v) end end,
             })
             return wrapValue(Options, flag, el, data.Default or "", data.Callback)
@@ -493,10 +493,10 @@ function Shim:Init(config)
         local function chosenName()
             local v = Options.SM_List and Options.SM_List.Value
             if type(v) == "table" then v = v[1] or next(v) end
-            if type(v) ~= "string" or v == "" then
+            if type(v) ~= "string" or v == "" or v == "-" then
                 v = Options.SM_Name and Options.SM_Name.Value
             end
-            return (type(v) == "string" and v ~= "") and v or nil
+            return (type(v) == "string" and v ~= "" and v ~= "-") and v or nil
         end
 
         box:AddButton({ Text = "Create / Save", Func = function()
@@ -504,8 +504,26 @@ function Shim:Init(config)
             if not nm or nm == "" then Library:Notify("Enter a config name first.", 3) return end
             _smEnsureFolder(self._folder)
             local ok, body = pcall(function() return HttpService:JSONEncode(_smCollect()) end)
-            if ok and writefile then writefile(self._folder .. "/" .. nm .. ".json", body); refresh(); Library:Notify("Saved config '" .. nm .. "'.", 3)
-            else Library:Notify("Save failed.", 3) end
+            if ok and writefile then 
+                writefile(self._folder .. "/" .. nm .. ".json", body)
+                refresh()
+                Library:Notify("Saved config '" .. nm .. "'.", 3)
+            else 
+                Library:Notify("Save failed.", 3) 
+            end
+        end })
+        box:AddButton({ Text = "Overwrite", Func = function()
+            local nm = chosenName()
+            if not nm then Library:Notify("Select a config or type a name to overwrite.", 3) return end
+            _smEnsureFolder(self._folder)
+            local ok, body = pcall(function() return HttpService:JSONEncode(_smCollect()) end)
+            if ok and writefile then 
+                writefile(self._folder .. "/" .. nm .. ".json", body)
+                refresh()
+                Library:Notify("Overwrote config '" .. nm .. "'.", 3)
+            else 
+                Library:Notify("Overwrite failed.", 3) 
+            end
         end })
         box:AddButton({ Text = "Load", Func = function()
             local nm = chosenName()
