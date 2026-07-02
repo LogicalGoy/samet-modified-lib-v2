@@ -153,7 +153,9 @@ function Shim:Init(config)
 
     function Library:Notify(text, dur)
         pcall(function()
-            Samet:Notification({ Title = tostring(text or ""), Duration = tonumber(dur) or 3, Icon = UI_LOGO })
+            -- Description = "" so the notification's description TextLabel doesn't fall back
+            -- to Roblox's default "Label" text (we only use the Title line).
+            Samet:Notification({ Title = tostring(text or ""), Description = "", Duration = tonumber(dur) or 3, Icon = UI_LOGO })
         end)
     end
 
@@ -510,7 +512,9 @@ function Shim:Init(config)
             if not nm then Library:Notify("Pick a config to load (or type its name).", 3) return end
             if not (isfile and readfile and isfile(self._folder .. "/" .. nm .. ".json")) then Library:Notify("Config '" .. nm .. "' not found.", 3) return end
             local ok, data = pcall(function() return HttpService:JSONDecode(readfile(self._folder .. "/" .. nm .. ".json")) end)
-            if ok then SaveManager:_apply(data); Library:Notify("Loaded config '" .. nm .. "'.", 3) else Library:Notify("Load failed.", 3) end
+            -- Apply OFF the button thread: some toggles' OnChanged fire RemoteFunction
+            -- InvokeServer (yields), which would otherwise freeze the Load button.
+            if ok then task.spawn(function() SaveManager:_apply(data) end); Library:Notify("Loaded config '" .. nm .. "'.", 3) else Library:Notify("Load failed.", 3) end
         end })
         box:AddButton({ Text = "Delete", Func = function()
             local nm = chosenName()
