@@ -446,11 +446,17 @@ function Shim:Init(config)
     end
     function SaveManager:_apply(data)
         if type(data) ~= "table" then return end
-        for k, val in pairs(data.toggles or {}) do if Toggles[k] then Toggles[k]:SetValue(val) end end
+        for k, val in pairs(data.toggles or {}) do
+            if Toggles[k] then
+                task.spawn(function() Toggles[k]:SetValue(val) end)
+            end
+        end
         for k, val in pairs(data.options or {}) do
             if Options[k] then
-                if type(val) == "table" and val.__c3 then val = Color3.new(val[1], val[2], val[3]) end
-                if Options[k].SetValue then Options[k]:SetValue(val) end
+                task.spawn(function()
+                    if type(val) == "table" and val.__c3 then val = Color3.new(val[1], val[2], val[3]) end
+                    if Options[k].SetValue then Options[k]:SetValue(val) end
+                end)
             end
         end
     end
