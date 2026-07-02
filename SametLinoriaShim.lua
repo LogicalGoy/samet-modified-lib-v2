@@ -462,11 +462,40 @@ function Shim:Init(config)
         end
         return out
     end
+    -- Read the currently-set autoload config name (trimmed), or nil.
+    function SaveManager:_autoloadName()
+        if isfile and readfile and isfile(self._folder .. "/autoload.txt") then
+            local ok, nm = pcall(readfile, self._folder .. "/autoload.txt")
+            if ok and type(nm) == "string" then
+                nm = nm:gsub("%s+$", ""):gsub("^%s+", "")
+                if nm ~= "" then return nm end
+            end
+        end
+        return nil
+    end
     function SaveManager:BuildConfigSection(tab)
         local box = tab:AddRightGroupbox("Save Profiles")
         box:AddInput("SM_Name", { Text = "Config name", Placeholder = "my config" })
         local list = box:AddDropdown("SM_List", { Values = self:_list(), Text = "Configs", AllowNull = true })
-        local function refresh() if list then list:SetValues(SaveManager:_list()) end end
+        local function refresh() if list then pcall(function() list:SetValues(SaveManager:_list()) end) end end
+
+        -- Autoload status label (was missing -- this is the "doesn't show what's set to autoload" fix).
+        local autoLabel = box:AddLabel("Autoload: none")
+        local function refreshAutoload()
+            local nm = SaveManager:_autoloadName()
+            if autoLabel and autoLabel.SetText then pcall(function() autoLabel:SetText("Autoload: " .. (nm or "none")) end) end
+        end
+
+        -- Resolve the chosen config name: dropdown selection first, else the typed name.
+        -- Coerces the occasional table/set Value shape so Load/Delete/Autoload never silently no-op.
+        local function chosenName()
+            local v = Options.SM_List and Options.SM_List.Value
+            if type(v) == "table" then v = v[1] or next(v) end
+            if type(v) ~= "string" or v == "" then
+                v = Options.SM_Name and Options.SM_Name.Value
+            end
+            return (type(v) == "string" and v ~= "") and v or nil
+        end
 
         box:AddButton({ Text = "Create / Save", Func = function()
             local nm = Options.SM_Name and Options.SM_Name.Value
@@ -477,23 +506,25 @@ function Shim:Init(config)
             else Library:Notify("Save failed.", 3) end
         end })
         box:AddButton({ Text = "Load", Func = function()
-            local nm = (Options.SM_List and Options.SM_List.Value) or (Options.SM_Name and Options.SM_Name.Value)
-            if not nm or nm == "" then Library:Notify("Pick a config to load.", 3) return end
-            if not (isfile and readfile and isfile(self._folder .. "/" .. nm .. ".json")) then Library:Notify("Config not found.", 3) return end
+            local nm = chosenName()
+            if not nm then Library:Notify("Pick a config to load (or type its name).", 3) return end
+            if not (isfile and readfile and isfile(self._folder .. "/" .. nm .. ".json")) then Library:Notify("Config '" .. nm .. "' not found.", 3) return end
             local ok, data = pcall(function() return HttpService:JSONDecode(readfile(self._folder .. "/" .. nm .. ".json")) end)
             if ok then SaveManager:_apply(data); Library:Notify("Loaded config '" .. nm .. "'.", 3) else Library:Notify("Load failed.", 3) end
         end })
         box:AddButton({ Text = "Delete", Func = function()
-            local nm = Options.SM_List and Options.SM_List.Value
+            local nm = chosenName()
             if nm and delfile and isfile and isfile(self._folder .. "/" .. nm .. ".json") then delfile(self._folder .. "/" .. nm .. ".json"); refresh(); Library:Notify("Deleted '" .. nm .. "'.", 3) end
         end })
-        box:AddButton({ Text = "Refresh List", Func = refresh })
+        box:AddButton({ Text = "Refresh List", Func = function() refresh(); refreshAutoload() end })
         box:AddButton({ Text = "Set as Autoload", Func = function()
-            local nm = Options.SM_List and Options.SM_List.Value
-            if nm and writefile then _smEnsureFolder(self._folder); writefile(self._folder .. "/autoload.txt", nm); Library:Notify("Autoload set to '" .. nm .. "'.", 3) end
+            local nm = chosenName()
+            if nm and writefile then _smEnsureFolder(self._folder); writefile(self._folder .. "/autoload.txt", nm); refreshAutoload(); Library:Notify("Autoload set to '" .. nm .. "'.", 3)
+            else Library:Notify("Pick or type a config first.", 3) end
         end })
         box:AddButton({ Text = "Clear Autoload", Func = function()
-            if delfile and isfile and isfile(self._folder .. "/autoload.txt") then delfile(self._folder .. "/autoload.txt"); Library:Notify("Autoload cleared.", 3) end
+            if delfile and isfile and isfile(self._folder .. "/autoload.txt") then pcall(delfile, self._folder .. "/autoload.txt") end
+            refreshAutoload(); Library:Notify("Autoload cleared.", 3)
         end })
 
         box:AddInput("SM_Search", { Text = "Search options", Placeholder = "filter elements..." })
@@ -507,10 +538,15 @@ function Shim:Init(config)
                 end
             end)
         end
+
+        -- Guarantee the config list + autoload label are current once the UI has settled
+        -- (build-time _list() can run before the folder is populated on some executors).
+        refreshAutoload()
+        task.defer(refresh)
     end
     function SaveManager:LoadAutoloadConfig()
         if not (isfile and readfile and isfile(self._folder .. "/autoload.txt")) then return end
-        local nm = readfile(self._folder .. "/autoload.txt")
+        local nm = self:_autoloadName()
         if nm and nm ~= "" and isfile(self._folder .. "/" .. nm .. ".json") then
             local ok, data = pcall(function() return HttpService:JSONDecode(readfile(self._folder .. "/" .. nm .. ".json")) end)
             if ok then task.delay(1, function() SaveManager:_apply(data) end); Library:Notify("Autoloaded config '" .. nm .. "'.", 3) end
