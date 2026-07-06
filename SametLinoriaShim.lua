@@ -342,6 +342,64 @@ function Shim:Init(config)
             fixLogo("Logo")
             fixLogo("FloatingLogo")
         end)
+
+        -- =========================================================================
+        -- MOBILE SUPPORT (built into the shim so every hub inherits it)
+        --   * debounce open/close  -> holding the FloatingLogo can't flash the menu on/off
+        --   * auto-fit UIScale      -> the window shrinks to fit small screens (touch only;
+        --                              on a desktop-size viewport the scale resolves to 1, so
+        --                              PC is unaffected). The FloatingLogo already toggles the
+        --                              menu, so no extra button is added.
+        -- =========================================================================
+        pcall(function()
+            -- debounce toggling (fixes hold-to-flash on mobile)
+            local realSetOpen = win.SetOpen
+            if type(realSetOpen) == "function" then
+                local lastToggle = 0
+                win.SetOpen = function(self, state, ...)
+                    if os.clock() - lastToggle < 0.28 then return end
+                    lastToggle = os.clock()
+                    return realSetOpen(self, state, ...)
+                end
+            end
+
+            if not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then return end
+
+            -- collect the lib's ScreenGui(s) from its item instances
+            local guis = {}
+            for _, it in pairs(win.Items or {}) do
+                local inst = it and it.Instance
+                local sg = inst and inst:FindFirstAncestorWhichIsA("ScreenGui")
+                if sg then guis[sg] = true end
+            end
+            -- scale only the WINDOW frame(s) (>300px wide) -- skips the small floating logo
+            local scales, bases = {}, {}
+            local function collect()
+                for sg in pairs(guis) do
+                    for _, f in ipairs(sg:GetChildren()) do
+                        if f:IsA("GuiObject") and f.AbsoluteSize.X > 300 and not f:FindFirstChildOfClass("UIScale") then
+                            table.insert(scales, Instance.new("UIScale", f))
+                            table.insert(bases, f.AbsoluteSize)
+                        end
+                    end
+                end
+            end
+            local function rescale()
+                if #scales == 0 then collect() end
+                local cam = Workspace.CurrentCamera
+                local vp = (cam and cam.ViewportSize) or Vector2.new(1280, 720)
+                for i, us in ipairs(scales) do
+                    local b = bases[i]
+                    if b.X > 0 and b.Y > 0 then
+                        us.Scale = math.clamp(math.min(vp.X * 0.92 / b.X, vp.Y * 0.92 / b.Y), 0.4, 1)
+                    end
+                end
+            end
+            task.defer(rescale); task.delay(0.5, rescale); task.delay(1.5, rescale)   -- retry until laid out
+            if Workspace.CurrentCamera then
+                table.insert(Connections, Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale))
+            end
+        end)
         pcall(function()
             local kl = Samet:KeybindList("Keybinds")
             Library.KeyList = kl
