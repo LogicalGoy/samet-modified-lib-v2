@@ -399,7 +399,9 @@ function Shim:Init(config)
                 for i, us in ipairs(scales) do
                     local b = bases[i]
                     if _G.CitraUIScale then
-                        us.Scale = _G.CitraUIScale
+                        us.Scale = _G.CitraUIScale          -- manual override, any device
+                    elseif IS_MOBILE then
+                        us.Scale = 0.25                     -- mobile default
                     elseif b.X > 0 and b.Y > 0 then
                         us.Scale = math.clamp(math.min(vp.X * TARGET / b.X, vp.Y * TARGET / b.Y), 0.3, 1)
                     end
