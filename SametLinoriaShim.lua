@@ -119,6 +119,11 @@ function Shim:Init(config)
     end)
 
     local Toggles, Options = {}, {}
+    -- Mobile can't press keys and tapping a keybind picker only gets in the way, so on touch
+    -- devices we skip building the visible keybind element (the synced toggle still works by tap,
+    -- and the Options[flag] stub below stays intact so hub code / configs never break).
+    -- Set  _G.CitraMobile = true  before loading to force this ON for previewing on PC.
+    local IS_MOBILE = (_G.CitraMobile == true) or (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
     local _searchReg = {}
     local _SametWindow
     local _windowOpen = true
@@ -197,7 +202,7 @@ function Shim:Init(config)
                 function kp:OnChanged(fn) table.insert(self._l, fn); return self end
                 function kp:GetState() return self._state == true end
                 function kp:SetValue(v) self.Value = v end
-                if not kdata.NoUI then
+                if not kdata.NoUI and not IS_MOBILE then
                     local noModes = true
                     local kfLower = string.lower(kflag)
                     if string.find(kfLower, "aim") or string.find(kfLower, "lock") or string.find(kfLower, "target") then
@@ -363,23 +368,26 @@ function Shim:Init(config)
                 end
             end
 
-            if not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then return end
+            -- Runs on ALL devices: on a desktop-size viewport the fit resolves to 1 (no change);
+            -- on a phone (where the Samet window is responsive and fills the screen) it shrinks
+            -- the window so it doesn't swallow the display. Tune live with
+            --   _G.CitraUIScale = 0.6   (absolute scale, overrides the auto-fit).
+            local TARGET = 0.78   -- window occupies at most ~78% of the smaller screen dimension
 
-            -- collect the lib's ScreenGui(s) from its item instances
             local guis = {}
             for _, it in pairs(win.Items or {}) do
                 local inst = it and it.Instance
                 local sg = inst and inst:FindFirstAncestorWhichIsA("ScreenGui")
                 if sg then guis[sg] = true end
             end
-            -- scale only the WINDOW frame(s) (>300px wide) -- skips the small floating logo
+            -- scale the WINDOW frame(s) (>300px wide) -- skips the small floating logo
             local scales, bases = {}, {}
             local function collect()
                 for sg in pairs(guis) do
                     for _, f in ipairs(sg:GetChildren()) do
                         if f:IsA("GuiObject") and f.AbsoluteSize.X > 300 and not f:FindFirstChildOfClass("UIScale") then
                             table.insert(scales, Instance.new("UIScale", f))
-                            table.insert(bases, f.AbsoluteSize)
+                            table.insert(bases, f.AbsoluteSize)   -- captured at Scale=1, so == base size
                         end
                     end
                 end
@@ -390,8 +398,10 @@ function Shim:Init(config)
                 local vp = (cam and cam.ViewportSize) or Vector2.new(1280, 720)
                 for i, us in ipairs(scales) do
                     local b = bases[i]
-                    if b.X > 0 and b.Y > 0 then
-                        us.Scale = math.clamp(math.min(vp.X * 0.92 / b.X, vp.Y * 0.92 / b.Y), 0.4, 1)
+                    if _G.CitraUIScale then
+                        us.Scale = _G.CitraUIScale
+                    elseif b.X > 0 and b.Y > 0 then
+                        us.Scale = math.clamp(math.min(vp.X * TARGET / b.X, vp.Y * TARGET / b.Y), 0.3, 1)
                     end
                 end
             end
