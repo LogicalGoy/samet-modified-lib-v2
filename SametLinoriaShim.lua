@@ -203,7 +203,14 @@ function Shim:Init(config)
                 function kp:GetState() return self._state == true end
                 function kp:SetValue(v)
                     self.Value = v
-                    if self._kb and self._kb.Set then pcall(function() self._kb:Set(keyToEnum(v) or v) end) end
+                    local kb = self._kb
+                    if not (kb and kb.Set) then return end
+                    pcall(function() kb:Set(keyToEnum(v) or v) end)
+                    -- programmatic Set changes the bound key but some Samet builds don't repaint the
+                    -- key label -> poke any refresh method it exposes so the UI shows the loaded key.
+                    for _, m in ipairs({ "Update", "Refresh", "UpdateText", "Render", "UpdateKeybind" }) do
+                        if type(kb[m]) == "function" then pcall(function() kb[m](kb) end) end
+                    end
                 end
                 if not kdata.NoUI and not IS_MOBILE then
                     local noModes = true
@@ -304,7 +311,14 @@ function Shim:Init(config)
                 function kp:GetState() return false end
                 function kp:SetValue(v)
                     self.Value = v
-                    if self._kb and self._kb.Set then pcall(function() self._kb:Set(keyToEnum(v) or v) end) end
+                    local kb = self._kb
+                    if not (kb and kb.Set) then return end
+                    pcall(function() kb:Set(keyToEnum(v) or v) end)
+                    -- programmatic Set changes the bound key but some Samet builds don't repaint the
+                    -- key label -> poke any refresh method it exposes so the UI shows the loaded key.
+                    for _, m in ipairs({ "Update", "Refresh", "UpdateText", "Render", "UpdateKeybind" }) do
+                        if type(kb[m]) == "function" then pcall(function() kb[m](kb) end) end
+                    end
                 end
                 Options[kflag] = kp
                 return lo
