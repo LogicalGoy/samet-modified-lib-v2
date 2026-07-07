@@ -201,7 +201,10 @@ function Shim:Init(config)
                 local kp = { Value = kdata.Default, _l = {}, _state = false, Sync = kdata.SyncToggleState, NoUI = kdata.NoUI }
                 function kp:OnChanged(fn) table.insert(self._l, fn); return self end
                 function kp:GetState() return self._state == true end
-                function kp:SetValue(v) self.Value = v end
+                function kp:SetValue(v)
+                    self.Value = v
+                    if self._kb and self._kb.Set then pcall(function() self._kb:Set(keyToEnum(v) or v) end) end
+                end
                 if not kdata.NoUI and not IS_MOBILE then
                     local noModes = true
                     local kfLower = string.lower(kflag)
@@ -299,7 +302,10 @@ function Shim:Init(config)
                 local kp = { Value = kdata.Default, _l = {}, NoUI = true }
                 function kp:OnChanged(fn) table.insert(self._l, fn); return self end
                 function kp:GetState() return false end
-                function kp:SetValue(v) self.Value = v end
+                function kp:SetValue(v)
+                    self.Value = v
+                    if self._kb and self._kb.Set then pcall(function() self._kb:Set(keyToEnum(v) or v) end) end
+                end
                 Options[kflag] = kp
                 return lo
             end
@@ -509,7 +515,16 @@ function Shim:Init(config)
         for k, v in pairs(Toggles) do if not _smIgnored(k) then data.toggles[k] = v.Value end end
         for k, v in pairs(Options) do
             local val = v.Value
-            if typeof(val) == "Color3" then val = { __c3 = true, val.R, val.G, val.B } end
+            -- keybind stubs: persist the LIVE key (read off the Samet element) as its name string,
+            -- since a raw EnumItem can't be JSON-encoded (this is why binds weren't saving).
+            if v._kb and v._kb.Get then
+                local ok, key = pcall(function() return (v._kb:Get()) end)
+                if ok and key ~= nil then val = { __key = true, name = (typeof(key) == "EnumItem" and key.Name) or tostring(key) } end
+            elseif typeof(val) == "EnumItem" then
+                val = { __key = true, name = val.Name }
+            elseif typeof(val) == "Color3" then
+                val = { __c3 = true, val.R, val.G, val.B }
+            end
             if type(val) ~= "function" and not _smIgnored(k) then data.options[k] = val end
         end
         return data
@@ -525,6 +540,7 @@ function Shim:Init(config)
             if Options[k] then
                 task.spawn(function()
                     if type(val) == "table" and val.__c3 then val = Color3.new(val[1], val[2], val[3]) end
+                    if type(val) == "table" and val.__key then val = val.name end   -- SetValue resolves the name->key
                     if Options[k].SetValue then Options[k]:SetValue(val) end
                 end)
             end
