@@ -132,8 +132,11 @@ function Shim:Init(config)
     local function keyToEnum(k)
         if typeof(k) == "EnumItem" then return k end
         if type(k) == "string" and k ~= "" and k ~= "None" then
+            -- saved configs store the key as the full "Enum.KeyCode.U" string (Keybind:Get returns
+            -- tostring(Key)); strip the prefix so Enum.KeyCode[...] resolves to a real EnumItem.
+            k = k:gsub("^Enum%.KeyCode%.", ""):gsub("^Enum%.UserInputType%.", "")
             local ok, e = pcall(function() return Enum.KeyCode[k] end)
-            if ok then return e end
+            if ok and e then return e end
         end
         return nil
     end
@@ -205,12 +208,10 @@ function Shim:Init(config)
                     self.Value = v
                     local kb = self._kb
                     if not (kb and kb.Set) then return end
+                    -- Pass a real EnumItem: Samet's Keybind:Set uses Key.Name and, on success, calls
+                    -- its internal Update() which repaints BOTH the key button and the Keybinds-list
+                    -- row. A raw "Enum.KeyCode.U" string would set the bind but leave the label stale.
                     pcall(function() kb:Set(keyToEnum(v) or v) end)
-                    -- programmatic Set changes the bound key but some Samet builds don't repaint the
-                    -- key label -> poke any refresh method it exposes so the UI shows the loaded key.
-                    for _, m in ipairs({ "Update", "Refresh", "UpdateText", "Render", "UpdateKeybind" }) do
-                        if type(kb[m]) == "function" then pcall(function() kb[m](kb) end) end
-                    end
                 end
                 if not kdata.NoUI and not IS_MOBILE then
                     local noModes = true
@@ -226,13 +227,34 @@ function Shim:Init(config)
                             kp._state = toggled and true or false
                             local mode = "Toggle"
                             if kb and kb.Get then local _, m = kb:Get(); if m and m ~= "" then mode = m end end
-                            if kp.Sync and mode == "Toggle" and Toggles[flag] then
+                            -- _pushing = the toggle is driving this keybind (below); don't loop the
+                            -- value back to the toggle or the two bounce forever.
+                            if not kp._pushing and kp.Sync and mode == "Toggle" and Toggles[flag] then
                                 Toggles[flag]:SetValue(kp._state)
                             end
                             for _, fn in ipairs(kp._l) do pcall(fn, kp._state) end
                         end,
                     })
                     kp._kb = kb
+                    -- Mirror the TOGGLE onto the keybind's Toggled state so enabling it any way
+                    -- (checkbox, config autoload, code) lights up the Keybinds-list row immediately.
+                    -- Samet only repaints that row from Keybind:Press/Set, so we set Toggled and
+                    -- re-apply the current key to trigger Samet's internal Update(). Guarded so a
+                    -- physical press (which already syncs keybind->toggle) doesn't re-drive itself.
+                    if kp.Sync and Toggles[flag] then
+                        Toggles[flag]:OnChanged(function(v)
+                            local kb2 = kp._kb
+                            if not kb2 then return end
+                            v = v and true or false
+                            if kb2.Toggled == v then return end
+                            kb2.Toggled = v
+                            kp._state = v
+                            kp._pushing = true
+                            local curEnum = keyToEnum(kb2.Key) or keyToEnum(kb2.Value)
+                            if curEnum then pcall(function() kb2:Set(curEnum) end) end
+                            kp._pushing = false
+                        end)
+                    end
                 end
                 Options[kflag] = kp
                 return obj
@@ -313,12 +335,10 @@ function Shim:Init(config)
                     self.Value = v
                     local kb = self._kb
                     if not (kb and kb.Set) then return end
+                    -- Pass a real EnumItem: Samet's Keybind:Set uses Key.Name and, on success, calls
+                    -- its internal Update() which repaints BOTH the key button and the Keybinds-list
+                    -- row. A raw "Enum.KeyCode.U" string would set the bind but leave the label stale.
                     pcall(function() kb:Set(keyToEnum(v) or v) end)
-                    -- programmatic Set changes the bound key but some Samet builds don't repaint the
-                    -- key label -> poke any refresh method it exposes so the UI shows the loaded key.
-                    for _, m in ipairs({ "Update", "Refresh", "UpdateText", "Render", "UpdateKeybind" }) do
-                        if type(kb[m]) == "function" then pcall(function() kb[m](kb) end) end
-                    end
                 end
                 Options[kflag] = kp
                 return lo
