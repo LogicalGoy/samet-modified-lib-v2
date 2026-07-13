@@ -201,7 +201,9 @@ function Shim:Init(config)
 
             function obj:AddKeyPicker(kflag, kdata)
                 kdata = kdata or {}
-                local kp = { Value = kdata.Default, _l = {}, _state = false, Sync = kdata.SyncToggleState, NoUI = kdata.NoUI }
+                -- Sync defaults ON: pressing a keybind drives its toggle, so the keybinds-list row
+                -- can't highlight "on" while the toggle is off (set SyncToggleState=false to opt out).
+                local kp = { Value = kdata.Default, _l = {}, _state = false, Sync = (kdata.SyncToggleState ~= false), NoUI = kdata.NoUI }
                 function kp:OnChanged(fn) table.insert(self._l, fn); return self end
                 function kp:GetState() return self._state == true end
                 function kp:SetValue(v)
